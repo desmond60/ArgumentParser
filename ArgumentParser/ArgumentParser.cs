@@ -8,13 +8,28 @@ namespace ArgumentParser;
 public class ArgParser
 {
     //: Fields & Properties
-    private List<Positional> positionals { get; set; }
+    private List<Positional> Positionals { get; set; }
+    private List<Optional>   Optionals   { get; set; }
+    private List<Optional>   Flags => Optionals.Where(n => n.IsImplicit).ToList();
 
-    public int NumRequiredArg => positionals.Where(n => n.IsDefault).Count();
+    public int NumRequiredArg => Positionals.Where(n => n.IsDefault).Count();
 
     //: Constructor
     public ArgParser() {
-        positionals = new List<Positional>();
+        Positionals = new List<Positional>();
+        Optionals   = new List<Optional>();
+    }
+
+    //: Indexer for flags
+    public bool this[string name] {
+        get {
+            
+            for (int i = 0; i < Flags.Count; i++)
+                if (name.Equals(Flags[i].Name) || 
+                    name.Equals(Flags[i].ShortName))
+                    return Flags[i].ValueImplicit;
+            return false;
+        }
     }
 
     //: Adding argument
@@ -22,15 +37,24 @@ public class ArgParser
 
         // Adding positional argument
         if (!name.StartsWith('-')) {
-            positionals.Add(new Positional(name));
-            return positionals[^1];
+            Positionals.Add(new Positional(name));
+            return Positionals[^1];
         }
+
+        // Adding optional argument
+        if (name.StartsWith("--")) {
+            Optionals.Add(new Optional(name));
+            return Optionals[^1];
+        }
+
         return new Positional(name);
     }
 
-    // public IArgument Add(string short_name, string long_name) {
-
-    // }
+    public IArgument Add(string long_name, string short_name) {
+        // Adding optional argument
+        Optionals.Add(new Optional(long_name, short_name));
+        return Optionals[^1];
+    }
 
     //: Parsing arguments
     public void Parse(string[] args) {
@@ -46,11 +70,32 @@ public class ArgParser
 
         while(strEnum.MoveNext()) {
             
+            // positional argument
             if (!strEnum.Current!.StartsWith('-') ||
                 int.TryParse(strEnum.Current!, out _)) {
-                if (IdPositionalArg == positionals.Count) throw new ParsingException($"Invalid number of positional arguments! Must be: {positionals.Count}");
-                if (positionals[IdPositionalArg].IsDefault) CountRequiredArg++;
-                positionals[IdPositionalArg++].Value = strEnum.Current;
+                if (IdPositionalArg == Positionals.Count) throw new ParsingException($"Invalid number of positional arguments! Must be: {Positionals.Count}");
+                if (Positionals[IdPositionalArg].IsDefault) CountRequiredArg++;
+                Positionals[IdPositionalArg++].Value = strEnum.Current;
+                continue;
+            }
+
+            // optional argument long_name
+            if (strEnum.Current!.StartsWith("--")) {
+                for (int i = 0; i < Optionals.Count; i++)
+                    if (Optionals[i].Name.Equals(strEnum.Current) && Optionals[i].IsImplicit) {
+                        Optionals[i].ValueImplicit = true;
+                        break;
+                    }
+                continue;
+            }
+
+            // optional argument short_name
+            if (strEnum.Current!.StartsWith("-")) {
+                for (int i = 0; i < Optionals.Count; i++)
+                    if (Optionals[i].ShortName.Equals(strEnum.Current) && Optionals[i].IsImplicit) {
+                        Optionals[i].ValueImplicit = true;
+                        break;
+                    }
                 continue;
             }
         }
@@ -62,9 +107,11 @@ public class ArgParser
     public dynamic GetArgument(string name, string type = "string") {
 
         //: Getting positional arguments
-        foreach (var item in positionals)
+        foreach (var item in Positionals)
             if (name.Equals(item.Name))
                 return GetValueByType(item, type);
+        
+        //: Getting optional argument
 
         return 0;
     }

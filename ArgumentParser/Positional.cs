@@ -4,10 +4,12 @@ namespace ArgumentParser;
 internal class Positional : IArgument
 {
     //: Fields & Properties 
-    public string Name        { get; set; }
-    public string Description { get; set; }
-    public string Value       { get; set; }
-    public bool   IsDefault   { get; set; }
+    public string Name          { get; set; }
+    public string Description   { get; set; }
+    public string Value         { get; set; }
+    public bool   IsDefault     { get; set; }
+    public bool   IsImplicit    { get; set; }
+    public bool   ValueImplicit { get; set; }
 
     //: Constructor
     public Positional(string _name) {
