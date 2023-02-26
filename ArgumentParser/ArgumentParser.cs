@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
 using System.Collections.Specialized;
+using System.Text.RegularExpressions;
 
 namespace ArgumentParser;
 
@@ -12,7 +13,8 @@ public class ArgParser
     private List<Optional>   Optionals   { get; set; }
     private List<Optional>   Flags => Optionals.Where(n => n.IsImplicit).ToList();
 
-    public int NumRequiredArg => Positionals.Where(n => n.IsDefault).Count();
+    public int NumRequiredArg => Positionals.Where(n => n.IsDefault).Count() + 
+                                 Optionals.Where(n => n.IsDefault).Count();
 
     //: Constructor
     public ArgParser() {
@@ -23,7 +25,6 @@ public class ArgParser
     //: Indexer for flags
     public bool this[string name] {
         get {
-            
             for (int i = 0; i < Flags.Count; i++)
                 if (name.Equals(Flags[i].Name) || 
                     name.Equals(Flags[i].ShortName))
@@ -36,24 +37,27 @@ public class ArgParser
     public IArgument Add(string name) {
 
         // Adding positional argument
-        if (!name.StartsWith('-')) {
+        if (Regex.IsMatch(name, @"^[a-zA-z]")) {
             Positionals.Add(new Positional(name));
             return Positionals[^1];
         }
 
         // Adding optional argument
-        if (name.StartsWith("--")) {
+        if (name.StartsWith("--") || name.StartsWith("-")) {
             Optionals.Add(new Optional(name));
             return Optionals[^1];
         }
-
-        return new Positional(name);
+   
+        throw new InvalidDataException("""Invalid argument name! Example: ("-f", "--file", "square")""");
     }
 
     public IArgument Add(string long_name, string short_name) {
         // Adding optional argument
-        Optionals.Add(new Optional(long_name, short_name));
-        return Optionals[^1];
+        if (long_name.StartsWith("--") && short_name.StartsWith("-")) {
+            Optionals.Add(new Optional(long_name, short_name));
+            return Optionals[^1];
+        }
+        throw new InvalidDataException("""Invalid argument name! Example: ("--file", "-f")""");
     }
 
     //: Parsing arguments
@@ -81,21 +85,41 @@ public class ArgParser
 
             // optional argument long_name
             if (strEnum.Current!.StartsWith("--")) {
-                for (int i = 0; i < Optionals.Count; i++)
-                    if (Optionals[i].Name.Equals(strEnum.Current) && Optionals[i].IsImplicit) {
-                        Optionals[i].ValueImplicit = true;
-                        break;
+                for (int i = 0; i < Optionals.Count; i++) {
+                    if (Optionals[i].Name.Equals(strEnum.Current)) {
+                        if (Optionals[i].IsImplicit) {
+                            Optionals[i].ValueImplicit = true;
+                            break;
+                        } else {
+                            strEnum.MoveNext();
+                            Optionals[i].Value = strEnum.Current;
+                            break;
+                        }
                     }
+
+                    if (i == Optionals.Count - 1)
+                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!");
+                }
                 continue;
             }
 
             // optional argument short_name
             if (strEnum.Current!.StartsWith("-")) {
-                for (int i = 0; i < Optionals.Count; i++)
-                    if (Optionals[i].ShortName.Equals(strEnum.Current) && Optionals[i].IsImplicit) {
-                        Optionals[i].ValueImplicit = true;
-                        break;
+                for (int i = 0; i < Optionals.Count; i++) {
+                    if (Optionals[i].ShortName.Equals(strEnum.Current)) {
+                        if (Optionals[i].IsImplicit) {
+                            Optionals[i].ValueImplicit = true;
+                            break;
+                        } else {
+                            strEnum.MoveNext();
+                            Optionals[i].Value = strEnum.Current;
+                            break;
+                        }
                     }
+
+                    if (i == Optionals.Count - 1)
+                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!");
+                }
                 continue;
             }
         }
@@ -112,8 +136,11 @@ public class ArgParser
                 return GetValueByType(item, type);
         
         //: Getting optional argument
+        foreach (var item in Optionals)
+            if (name.Equals(item.Name) || name.Equals(item.ShortName))
+                return GetValueByType(item, type);
 
-        return 0;
+        throw new InvalidDataException($"");
     }
 
     //: Convert the value to the specified type

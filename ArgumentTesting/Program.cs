@@ -2,14 +2,22 @@
 
 ArgParser parser = new ArgParser();
 
+// Позиционный аргумент
 parser.Add("file")
       .SetDescription("file name")
-      .SetDefault(false);
+      .SetDefault(true);
 
+// Опциональный флаговый аргумент
 parser.Add("--test", "-t")
       .SetDescription("optional argument!")
-      .SetImplicit(true)
-      .SetValueImplicit(false);
+      .SetImplicit(true) // Это флаг
+      .SetValueImplicit(false); // Если нет аргумента то false
+
+// Опциональный аргумент с значением
+parser.Add("--var", "-v")
+      .SetDescription("optional argument!")
+      .SetDefault(false);
+
 
 try {
     parser.Parse(args);
@@ -22,6 +30,11 @@ catch (ParsingException ex) {
 if (parser["-t"])
     Console.WriteLine("опачки");
 
-// string abs = parser.GetArgument("file");
+string pos = parser.GetArgument("file");
+Console.WriteLine(pos);
 
-// Console.WriteLine(abs);
+string opt = parser.GetArgument("-v");
+Console.WriteLine(opt);
+
+Сделать исключение при обращение к аргументу который не задан
+Справку сделать
