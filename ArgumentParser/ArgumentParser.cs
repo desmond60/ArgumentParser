@@ -1,7 +1,6 @@
-﻿using System.Globalization;
-using System.Text;
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.Text.RegularExpressions;
+using WatchTable;
 
 namespace ArgumentParser;
 
@@ -63,6 +62,13 @@ public class ArgParser
     //: Parsing arguments
     public void Parse(string[] args) {
 
+        // Argument Help
+        bool isHelp = args.Contains("--help") || args.Contains("-h");
+        if (isHelp) {
+            Console.WriteLine(HelpMessage());
+            return;
+        }
+
         // Create Enumerator Argument`s
         StringCollection argCol = new StringCollection(); 
         argCol.AddRange(args);
@@ -98,7 +104,7 @@ public class ArgParser
                     }
 
                     if (i == Optionals.Count - 1)
-                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!");
+                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!\n" + HelpMessage());
                 }
                 continue;
             }
@@ -118,7 +124,7 @@ public class ArgParser
                     }
 
                     if (i == Optionals.Count - 1)
-                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!");
+                        throw new ParsingException($"\"{strEnum.Current}\" - invalid argument!\n" + HelpMessage());
                 }
                 continue;
             }
@@ -130,6 +136,10 @@ public class ArgParser
     //: Returning the value of an argument (By Name)
     public dynamic GetArgument(string name, string type = "string") {
 
+        //: Argument Help
+        if (name == "--help" || name == "-h")
+            return HelpMessage();
+
         //: Getting positional arguments
         foreach (var item in Positionals)
             if (name.Equals(item.Name))
@@ -140,11 +150,15 @@ public class ArgParser
             if (name.Equals(item.Name) || name.Equals(item.ShortName))
                 return GetValueByType(item, type);
 
-        throw new InvalidDataException($"");
+        throw new InvalidDataException($"No such argument was found: {name}\n" + HelpMessage());
     }
 
     //: Convert the value to the specified type
     private object GetValueByType(IArgument item, string type) {
+        
+        if (item.Value is null)
+            throw new InvalidDataException($"The argument is not specified: {item.Name}\n" + HelpMessage());
+
         return type switch {
             "bool"    => Boolean.Parse(item.Value.ToString()!),
             "sbyte"   => SByte.Parse(item.Value.ToString()!),
@@ -164,5 +178,43 @@ public class ArgParser
             "string"  => item.Value.ToString()!,
             _         => item.Value.ToString()!
         };
+    }
+
+    //: Check if the argument is set
+    public bool IsContain(string name) {
+
+        //: Check positional arguments
+        foreach (var item in Positionals)
+            if (name.Equals(item.Name))
+                return item.Value is null ? false : true;
+        
+        //: Check optional argument
+        foreach (var item in Optionals)
+            if (name.Equals(item.Name) || name.Equals(item.ShortName))
+                return item.Value is null ? false : true;
+
+        return false;
+    }
+
+    //: String help message
+    private string HelpMessage() {
+        
+        Table message = new Table("ArgumentParser");
+        message.AddColumn(
+            ("Argument", 25),
+            ("Description", 80)
+        );
+
+        message.AddRow("--help, -h", "Shows help message");
+
+        //: Positional arguments
+        foreach (var item in Positionals)
+            message.AddRow($"{item.Name}", $"{item.Description}");
+        
+        //: Optional argument
+        foreach (var item in Optionals)
+            message.AddRow($"{item.Name}, {item.ShortName}", $"{item.Description}");
+
+        return message.ToString();
     }
 }
